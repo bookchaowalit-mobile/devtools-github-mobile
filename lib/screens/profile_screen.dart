@@ -13,7 +13,8 @@ class ProfileScreen extends StatelessWidget {
           children: [
             Icon(Icons.person, size: 64),
             SizedBox(height: 16),
-            Text('Chaowalit Greepoke', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            Text('Chaowalit Greepoke',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
             SizedBox(height: 8),
             Text('bookchaowalit.com'),
           ],
