@@ -1,35 +1,67 @@
-name: Build Mobile App
+name: Validate Flutter Mobile App
 
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: '3.47.5'
 
 jobs:
-  analyze:
-    name: Analyze & Test
-    runs-on: ubuntu-latest
+  validate:
+    name: Format & analyze (fail-closed)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          flutter-version: '3.24.x'
+          persist-credentials: false
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
           cache: true
-      - run: flutter pub get
-      - run: flutter analyze || true
-      - run: flutter test || true
+      - name: Resolve dependencies (lockfile must not change)
+        run: flutter pub get --enforce-lockfile
+      - name: Format
+        run: dart format --output=none --set-exit-if-changed lib
+      - name: Analyze
+        run: flutter analyze
+      # No test/ directory yet: this scaffold has no app logic to test, so the
+      # debug APK build below is the second real check (runs on every event).
 
-  build-android:
-    name: Build Android APK
-    needs: analyze
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+  # Debug APK build: proves the Android scaffold compiles. Not a store build.
+  build-android-debug:
+    name: Debug APK build (not for store)
+    needs: [validate]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          flutter-version: '3.24.x'
+          persist-credentials: false
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
           cache: true
-      - run: flutter pub get
-      - run: flutter build apk --debug || true
+      - run: flutter pub get --enforce-lockfile
+      - name: Build debug APK
+        run: flutter build apk --debug
+
+  security:
+    uses: bookchaowalit/platform-ci-workflows/.github/workflows/security.yml@87dc5e1c7e0416886a6371d5a101bb2ccba38edd # v1.1.1
